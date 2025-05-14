@@ -10,7 +10,7 @@ Parameters:
   
   SharedServicesRegion:
     Type: String
-    Description: AWS Region of the Sirius CTS Shared Services Account
+    Description: The AWS region where the central event bus is located
     Default: us-east-1
   
   CloudTrailBucketPrefix:
