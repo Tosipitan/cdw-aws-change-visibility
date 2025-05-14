@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Centralized Logging Solution for Sirius CTS - Captures user activity events and forwards them to Shared Services Account (StackSet version)'
+Description: 'Centralized Logging Solution for CDW Customers AWS Accounts - Captures user activity events and forwards them to Shared Services Account (StackSet version)'
 
 Parameters:
   SharedServicesAccountId:
@@ -16,14 +16,14 @@ Parameters:
   CloudTrailBucketPrefix:
     Type: String
     Description: Prefix for the S3 bucket to store CloudTrail logs (account ID will be appended)
-    Default: sirius-cts-cloudtrail-logs
+    Default: change-visibility-app-logs
     AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,50}$'
     ConstraintDescription: Must be a valid S3 bucket prefix (max 50 chars to allow for account ID)
 
   EventBusName:
     Type: String
     Description: Name of the EventBridge event bus in the Shared Services Account
-    Default: sirius-cts-central-event-bus
+    Default: change-visibility-app-event-bus
 
 Resources:
   # S3 Bucket for CloudTrail Logs - Using dynamic naming with account ID
@@ -89,7 +89,7 @@ Resources:
       IncludeGlobalServiceEvents: true
       EventSelectors:
         - ReadWriteType: WriteOnly  # Focus on create, delete, and modify actions
-          IncludeManagementEvents: true
+          IncludeManagementEvents: false
       CloudWatchLogsLogGroupArn: !GetAtt CloudTrailLogGroup.Arn
       CloudWatchLogsRoleArn: !GetAtt CloudTrailLogsRole.Arn
 
