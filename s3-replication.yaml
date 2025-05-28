@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: S3 Replication Setup for Existing Bucket
+
+Parameters:
+  SourceBucketName:
+    Type: String
+    Description: Name of the existing source bucket for replication
+  
+  DestinationBucketArn:
+    Type: String
+    Description: ARN of the destination bucket for replication
+  
+  ReplicationRoleName:
+    Type: String
+    Description: Name for the IAM role needed for S3 replication
+  
+  SourceAccountId:
+    Type: String
+    Description: AWS Account ID of the source account
+    AllowedPattern: '^[0-9]{12}$'
+    ConstraintDescription: Must be a valid 12-digit AWS account ID
+  
+  DestinationAccountId:
+    Type: String
+    Description: AWS Account ID of the destination account
+    AllowedPattern: '^[0-9]{12}$'
+    ConstraintDescription: Must be a valid 12-digit AWS account ID
+
+Resources:
+  ReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref ReplicationRoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref SourceAccountId
+      ManagedPolicyArns:
+        - !Ref ReplicationPolicy
+  
+  ReplicationPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for S3 bucket replication
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObjectVersion
+              - s3:GetObjectVersionAcl
+              - s3:GetObjectVersionTagging
+            Resource: !Sub arn:aws:s3:::${SourceBucketName}/*
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketVersioning
+              - s3:GetReplicationConfiguration
+            Resource: !Sub arn:aws:s3:::${SourceBucketName}
+          - Effect: Allow
+            Action:
+              - s3:ReplicateObject
+              - s3:ReplicateDelete
+              - s3:ReplicateTags
+              - s3:PutObject
+            Resource: !Sub ${DestinationBucketArn}/*
+
+  EnableBucketVersioning:
+    Type: Custom::S3BucketVersioning
+    Properties:
+      ServiceToken: !GetAtt VersioningFunction.Arn
+      BucketName: !Ref SourceBucketName
+
+  ConfigureReplication:
+    Type: Custom::S3Replication
+    DependsOn: EnableBucketVersioning
+    Properties:
+      ServiceToken: !GetAtt ReplicationFunction.Arn
+      BucketName: !Ref SourceBucketName
+      RoleArn: !GetAtt ReplicationRole.Arn
+      DestinationBucket: !Ref DestinationBucketArn
+      DestinationAccount: !Ref DestinationAccountId
+
+  VersioningFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              logger.info('Received event: %s', event)
+              
+              # Initialize response
+              response_data = {}
+              
+              try:
+                  # Get request type
+                  request_type = event['RequestType']
+                  
+                  # Get properties
+                  properties = event['ResourceProperties']
+                  bucket_name = properties['BucketName']
+                  
+                  # Initialize S3 client
+                  s3 = boto3.client('s3')
+                  
+                  if request_type == 'Create' or request_type == 'Update':
+                      # Enable versioning on the bucket
+                      s3.put_bucket_versioning(
+                          Bucket=bucket_name,
+                          VersioningConfiguration={
+                              'Status': 'Enabled'
+                          }
+                      )
+                      logger.info(f"Versioning enabled on bucket {bucket_name}")
+                      response_data['Message'] = f"Versioning enabled on bucket {bucket_name}"
+                  
+                  # For Delete, we don't disable versioning as it might be needed for other purposes
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+              
+              except Exception as e:
+                  logger.error(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+
+  ReplicationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              logger.info('Received event: %s', event)
+              
+              # Initialize response
+              response_data = {}
+              
+              try:
+                  # Get request type
+                  request_type = event['RequestType']
+                  
+                  # Get properties
+                  properties = event['ResourceProperties']
+                  bucket_name = properties['BucketName']
+                  role_arn = properties['RoleArn']
+                  destination_bucket = properties['DestinationBucket']
+                  destination_account = properties['DestinationAccount']
+                  
+                  # Initialize S3 client
+                  s3 = boto3.client('s3')
+                  
+                  if request_type == 'Create' or request_type == 'Update':
+                      # Configure replication
+                      replication_config = {
+                          'Role': role_arn,
+                          'Rules': [
+                              {
+                                  'ID': 'ReplicationRule1',
+                                  'Status': 'Enabled',
+                                  'Priority': 1,
+                                  'Filter': {},
+                                  'DeleteMarkerReplication': {
+                                      'Status': 'Enabled'
+                                  },
+                                  'Destination': {
+                                      'Bucket': destination_bucket,
+                                      'Account': destination_account
+                                  }
+                              }
+                          ]
+                      }
+                      
+                      s3.put_bucket_replication(
+                          Bucket=bucket_name,
+                          ReplicationConfiguration=replication_config
+                      )
+                      
+                      logger.info(f"Replication configured for bucket {bucket_name}")
+                      response_data['Message'] = f"Replication configured for bucket {bucket_name}"
+                  
+                  elif request_type == 'Delete':
+                      # Delete replication configuration
+                      try:
+                          s3.delete_bucket_replication(Bucket=bucket_name)
+                          logger.info(f"Replication configuration deleted for bucket {bucket_name}")
+                          response_data['Message'] = f"Replication configuration deleted for bucket {bucket_name}"
+                      except Exception as e:
+                          logger.warning(f"Error deleting replication configuration: {str(e)}")
+                          # Don't fail the stack deletion if this fails
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+              
+              except Exception as e:
+                  logger.error(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3BucketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketVersioning
+                  - s3:PutReplicationConfiguration
+                  - s3:GetBucketReplication
+                  - s3:DeleteBucketReplication
+                Resource: !Sub arn:aws:s3:::${SourceBucketName}
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt ReplicationRole.Arn
+Outputs:
+  ReplicationRoleArn:
+    Description: ARN of the IAM role used for replication
+    Value: !GetAtt ReplicationRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ReplicationRoleArn
