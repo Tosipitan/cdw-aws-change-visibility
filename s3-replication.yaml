@@ -12,7 +12,7 @@ Parameters:
   
   ReplicationRoleName:
     Type: String
-    Description: Name for the IAM role needed for S3 replication
+    Description: Enter "S3ReplicationRole" as the ReplicationRoleName
   
   SourceAccountId:
     Type: String
