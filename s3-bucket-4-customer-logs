@@ -23,6 +23,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
 
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -39,7 +42,10 @@ Resources:
               - s3:ReplicateObject
               - s3:ReplicateDelete
               - s3:ReplicateTags
-            Resource: !Sub 'arn:aws:s3:::${VersionedBucket}/*'
+              - s3:GetObjectVersionAcl
+              - s3:GetObjectVersionTagging
+              - s3:ObjectOwnerOverrideToBucketOwner
+            Resource: !Sub 'arn:aws:s3:::${BucketName}/*'
 
 Outputs:
   BucketName:
