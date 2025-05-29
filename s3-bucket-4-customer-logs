@@ -27,26 +27,25 @@ Resources:
         Rules:
           - ObjectOwnership: BucketOwnerEnforced
 
-  BucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref VersionedBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowReplicationFromSourceRole
-            Effect: Allow
-            Principal:
-              AWS: !Ref ReplicationRoleArn
-            Action:
-              - s3:ReplicateObject
-              - s3:ReplicateDelete
-              - s3:ReplicateTags
-              - s3:GetObjectVersionAcl
-              - s3:GetObjectVersionTagging
-              - s3:ObjectOwnerOverrideToBucketOwner
-            Resource: !Sub 'arn:aws:s3:::${BucketName}/*'
-
+  # BucketPolicy:
+  #   Type: AWS::S3::BucketPolicy
+  #   Properties:
+  #     Bucket: !Ref VersionedBucket
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Sid: AllowReplicationFromSourceRole
+  #           Effect: Allow
+  #           Principal:
+  #             AWS: !Ref ReplicationRoleArn
+  #           Action:
+  #             - s3:ReplicateObject
+  #             - s3:ReplicateDelete
+  #             - s3:ReplicateTags
+  #             - s3:GetObjectVersionAcl
+  #             - s3:GetObjectVersionTagging
+  #             - s3:ObjectOwnerOverrideToBucketOwner
+  #           Resource: !Sub 'arn:aws:s3:::${BucketName}/*'
 Outputs:
   BucketName:
     Description: Name of the created S3 bucket
