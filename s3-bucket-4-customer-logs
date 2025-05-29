@@ -9,7 +9,7 @@ Parameters:
     ConstraintDescription: Bucket name must be between 3 and 63 characters, start and end with a lowercase letter or number, and can contain lowercase letters, numbers, dots, and hyphens.
   ReplicationRoleArn:
     Type: String
-    Description: ARN of the IAM role that will be used for S3 replication
+    Description: ARN of the IAM role that will be used for S3 replication in the format (arn:aws:iam::YourAWSAccountNumber:role/S3ReplicationRole)
 
 Resources:
   VersionedBucket:
