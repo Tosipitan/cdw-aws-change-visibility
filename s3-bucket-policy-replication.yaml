@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Template for creating an S3 bucket policy for replication'
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name of the S3 bucket to apply the policy to
+  
+  ReplicationRoleArn:
+    Type: String
+    Description: ARN of the IAM role that will be used for S3 replication in the format (arn:aws:iam::SourceAccountID:role/S3ReplicationRole)
+
+Resources:
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BucketName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowReplicationFromSourceRole
+            Effect: Allow
+            Principal:
+              AWS: !Ref ReplicationRoleArn
+            Action:
+              - s3:ReplicateObject
+              - s3:ReplicateDelete
+              - s3:ReplicateTags
+              - s3:GetObjectVersionAcl
+              - s3:GetObjectVersionTagging
+              - s3:ObjectOwnerOverrideToBucketOwner
+            Resource: !Sub 'arn:aws:s3:::${BucketName}/*'
+
+Outputs:
+  BucketPolicyApplied:
+    Description: Confirmation that the bucket policy was applied
+    Value: !Sub 'Replication policy applied to ${BucketName}'
