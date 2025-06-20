@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: S3 Replication Setup for Existing Bucket
+Description: 'Complete S3 cross-account replication setup including IAM role, policies, versioning enablement, and replication configuration via Lambda functions'
 
 Parameters:
   SourceBucketName:
